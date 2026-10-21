@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-21
+
 ### Added
 
 - NetAlertX in Gladys, read through its API (GraphQL, port 20212, API token), local only.
@@ -23,4 +25,5 @@ the notes of the version's GitHub Release.
 - Configuration actions: test the connection, mark every new device as known.
 - English, French, German and Spanish, documentation included.
 
-[Unreleased]: https://github.com/guim31/gladys-netalertx/commits/main
+[Unreleased]: https://github.com/guim31/gladys-netalertx/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-netalertx/releases/tag/v1.0.0
