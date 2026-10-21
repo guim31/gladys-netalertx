@@ -1,0 +1,111 @@
+{
+  "data": {
+    "devices": {
+      "count": 6,
+      "devices": [
+        {
+          "devAlertDown": 0,
+          "devFirstConnection": "2026-10-21 14:36:18",
+          "devGroup": "",
+          "devIsArchived": 0,
+          "devIsNew": 1,
+          "devLastConnection": "2026-10-21 14:37:14",
+          "devLastIP": "192.0.2.1",
+          "devLocation": "",
+          "devMac": "02:00:5e:10:00:01",
+          "devName": "docker-host",
+          "devOwner": "",
+          "devPresentLastScan": 1,
+          "devStatus": "New",
+          "devType": "",
+          "devVendor": "(Unknown: locally administered)"
+        },
+        {
+          "devAlertDown": 0,
+          "devFirstConnection": "2026-10-21 14:36:18",
+          "devGroup": "",
+          "devIsArchived": 0,
+          "devIsNew": 1,
+          "devLastConnection": "2026-10-21 14:37:14",
+          "devLastIP": "192.0.2.21",
+          "devLocation": "",
+          "devMac": "02:00:5e:10:00:21",
+          "devName": "laptop.lan",
+          "devOwner": "",
+          "devPresentLastScan": 1,
+          "devStatus": "New",
+          "devType": "",
+          "devVendor": "(Unknown: locally administered)"
+        },
+        {
+          "devAlertDown": 0,
+          "devFirstConnection": "2026-10-21 14:36:18",
+          "devGroup": "",
+          "devIsArchived": 0,
+          "devIsNew": 1,
+          "devLastConnection": "2026-10-21 14:37:14",
+          "devLastIP": "192.0.2.22",
+          "devLocation": "",
+          "devMac": "02:00:5e:10:00:22",
+          "devName": "phone.lan",
+          "devOwner": "",
+          "devPresentLastScan": 1,
+          "devStatus": "New",
+          "devType": "",
+          "devVendor": "(Unknown: locally administered)"
+        },
+        {
+          "devAlertDown": 0,
+          "devFirstConnection": "2026-10-21 14:36:18",
+          "devGroup": "",
+          "devIsArchived": 0,
+          "devIsNew": 1,
+          "devLastConnection": "2026-10-21 14:37:14",
+          "devLastIP": "192.0.2.23",
+          "devLocation": "",
+          "devMac": "02:00:5e:10:00:23",
+          "devName": "tv.lan",
+          "devOwner": "",
+          "devPresentLastScan": 1,
+          "devStatus": "New",
+          "devType": "",
+          "devVendor": "(Unknown: locally administered)"
+        },
+        {
+          "devAlertDown": 0,
+          "devFirstConnection": "2026-10-21 14:36:18",
+          "devGroup": "",
+          "devIsArchived": 0,
+          "devIsNew": 1,
+          "devLastConnection": "2026-10-21 14:36:18",
+          "devLastIP": "198.51.100.7",
+          "devLocation": "",
+          "devMac": "internet",
+          "devName": "198-51-100-7.example.net",
+          "devOwner": "",
+          "devPresentLastScan": 0,
+          "devStatus": "New",
+          "devType": "Gateway",
+          "devVendor": ""
+        },
+        {
+          "devAlertDown": 0,
+          "devFirstConnection": "2026-10-21 14:36:18",
+          "devGroup": "",
+          "devIsArchived": 0,
+          "devIsNew": 1,
+          "devLastConnection": "2026-10-21 14:37:14",
+          "devLastIP": "192.0.2.10",
+          "devLocation": "",
+          "devMac": "02:00:5e:10:00:10",
+          "devName": "netalertx.lan",
+          "devOwner": "",
+          "devPresentLastScan": 1,
+          "devStatus": "New",
+          "devType": "Server",
+          "devVendor": ""
+        }
+      ]
+    }
+  }
+}

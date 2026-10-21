@@ -30,6 +30,17 @@ Gladys before reporting a problem.
 
 In scope: the code of this repository and the Docker image it publishes.
 
+What the integration handles:
+
+- the **API token of NetAlertX**, stored by Gladys in the integration configuration (a `secret`
+  field) and sent only to the NetAlertX address you configure, in the `Authorization` header;
+  it is never written to the logs or to `/data`;
+- under `/data`, `snapshot.json`: the MAC addresses of the devices NetAlertX knows, with their
+  present / new / alert-down flags (no name, no IP address);
+- the network: HTTP(S) requests to the NetAlertX API only, on the local network (no cloud, no
+  other outgoing connection). Prefer HTTPS behind a reverse proxy if the API crosses an
+  untrusted network: the token travels in clear over plain HTTP.
+
 Out of scope: Gladys Assistant itself (see its
 [security policy](https://github.com/GladysAssistant/Gladys/security/policy)),
-and the third-party services and devices the integration talks to.
+and NetAlertX, the third-party service the integration talks to.

@@ -1,177 +1,586 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "NetAlertX",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Who is on your network: presence of each device, and an alert when an unknown one connects.",
+    "fr": "Qui est sur votre réseau : présence de chaque appareil, et une alerte quand un inconnu se connecte.",
+    "de": "Wer ist in deinem Netzwerk: Anwesenheit jedes Geräts, Alarm bei einem unbekannten neuen Gerät.",
+    "es": "Quién está en su red: presencia de cada dispositivo y una alerta cuando se conecta uno desconocido."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-netalertx:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-netalertx/main/cover.png",
+  "categories": ["network", "security"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Your NetAlertX",
+        "fr": "Votre NetAlertX",
+        "de": "Dein NetAlertX",
+        "es": "Su NetAlertX"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "NetAlertX scans your network and keeps the list of its devices. In NetAlertX, copy the API token from Settings → General (API token). The integration reads the API, on port 20212 by default (GRAPHQL_PORT), not the web interface on 20211.",
+        "fr": "NetAlertX scanne votre réseau et tient la liste de ses appareils. Dans NetAlertX, copiez le jeton d'API depuis Paramètres → General (API token). L'intégration lit l'API, sur le port 20212 par défaut (GRAPHQL_PORT), et non l'interface web sur 20211.",
+        "de": "NetAlertX scannt dein Netzwerk und führt die Liste seiner Geräte. Kopiere in NetAlertX das API-Token aus Einstellungen → General (API token). Die Integration liest die API, standardmäßig auf Port 20212 (GRAPHQL_PORT), nicht die Weboberfläche auf 20211.",
+        "es": "NetAlertX escanea su red y mantiene la lista de sus dispositivos. En NetAlertX, copie el token de API desde Ajustes → General (API token). La integración lee la API, en el puerto 20212 por defecto (GRAPHQL_PORT), no la interfaz web en el 20211."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/guim31/gladys-netalertx/blob/main/docs/en.md",
+          "label": {
+            "en": "Setup guide",
+            "fr": "Guide d'installation",
+            "de": "Installationsanleitung",
+            "es": "Guía de instalación"
+          }
+        },
+        {
+          "url": "https://docs.netalertx.com/API/",
+          "label": {
+            "en": "NetAlertX API",
+            "fr": "API NetAlertX",
+            "de": "NetAlertX-API",
+            "es": "API de NetAlertX"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "key": "url",
+      "type": "string",
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "default": "",
+      "label": {
+        "en": "API address",
+        "fr": "Adresse de l'API",
+        "de": "API-Adresse",
+        "es": "Dirección de la API"
+      },
+      "description": {
+        "en": "IP address or name of the NetAlertX server, with :port if the API is not on 20212, and https:// behind a reverse proxy.",
+        "fr": "Adresse IP ou nom du serveur NetAlertX, avec :port si l'API n'est pas sur 20212, et https:// derrière un proxy inverse.",
+        "de": "IP-Adresse oder Name des NetAlertX-Servers, mit :Port, wenn die API nicht auf 20212 läuft, und https:// hinter einem Reverse-Proxy.",
+        "es": "Dirección IP o nombre del servidor NetAlertX, con :puerto si la API no está en el 20212, y https:// detrás de un proxy inverso."
+      },
+      "placeholder": {
+        "en": "e.g. 192.168.1.10:20212",
+        "fr": "ex. 192.168.1.10:20212",
+        "de": "z. B. 192.168.1.10:20212",
+        "es": "p. ej. 192.168.1.10:20212"
+      }
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
+      "key": "api_token",
+      "type": "secret",
       "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "label": {
+        "en": "API token",
+        "fr": "Jeton d'API",
+        "de": "API-Token",
+        "es": "Token de API"
+      },
+      "description": {
+        "en": "The API_TOKEN setting of NetAlertX (starts with t_).",
+        "fr": "Le réglage API_TOKEN de NetAlertX (commence par t_).",
+        "de": "Die Einstellung API_TOKEN von NetAlertX (beginnt mit t_).",
+        "es": "El ajuste API_TOKEN de NetAlertX (empieza por t_)."
+      }
     },
     {
-      "key": "unit",
+      "key": "poll_interval",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
       "required": false,
-      "default": "celsius",
+      "default": "60",
+      "label": {
+        "en": "Read interval",
+        "fr": "Intervalle de lecture",
+        "de": "Leseintervall",
+        "es": "Intervalo de lectura"
+      },
+      "description": {
+        "en": "How often the device list of NetAlertX is read. NetAlertX itself scans every 5 minutes by default.",
+        "fr": "Fréquence de lecture de la liste des appareils de NetAlertX. NetAlertX scanne lui-même toutes les 5 minutes par défaut.",
+        "de": "Wie oft die Geräteliste von NetAlertX gelesen wird. NetAlertX selbst scannt standardmäßig alle 5 Minuten.",
+        "es": "Con qué frecuencia se lee la lista de dispositivos de NetAlertX. NetAlertX escanea por sí mismo cada 5 minutos por defecto."
+      },
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "30",
+          "label": {
+            "en": "30 seconds",
+            "fr": "30 secondes",
+            "de": "30 Sekunden",
+            "es": "30 segundos"
+          }
+        },
+        {
+          "value": "60",
+          "label": {
+            "en": "1 minute",
+            "fr": "1 minute",
+            "de": "1 Minute",
+            "es": "1 minuto"
+          }
+        },
+        {
+          "value": "120",
+          "label": {
+            "en": "2 minutes",
+            "fr": "2 minutes",
+            "de": "2 Minuten",
+            "es": "2 minutos"
+          }
+        },
+        {
+          "value": "300",
+          "label": {
+            "en": "5 minutes",
+            "fr": "5 minutes",
+            "de": "5 Minuten",
+            "es": "5 minutos"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
+      "key": "language",
+      "type": "select",
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "label": {
+        "en": "Language of the names",
+        "fr": "Langue des noms",
+        "de": "Sprache der Namen",
+        "es": "Idioma de los nombres"
+      },
+      "description": {
+        "en": "Names given to new devices and their features (Presence, IP address…), and language of the messages and dates.",
+        "fr": "Noms donnés aux nouveaux appareils et à leurs fonctionnalités (Présence, Adresse IP…), et langue des messages et des dates.",
+        "de": "Namen für neue Geräte und ihre Funktionen (Anwesenheit, IP-Adresse…) sowie Sprache der Meldungen und Daten.",
+        "es": "Nombres dados a los nuevos dispositivos y a sus funciones (Presencia, Dirección IP…), e idioma de los mensajes y las fechas."
+      },
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion",
+        "de": "Verbindung testen",
+        "es": "Probar la conexión"
+      },
+      "description": {
+        "en": "Reads NetAlertX once and says how many devices it knows.",
+        "fr": "Lit NetAlertX une fois et indique combien d'appareils il connaît.",
+        "de": "Liest NetAlertX einmal und sagt, wie viele Geräte es kennt.",
+        "es": "Lee NetAlertX una vez e indica cuántos dispositivos conoce."
+      },
       "timeout_seconds": 30
     },
     {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
+      "key": "mark_all_known",
+      "label": {
+        "en": "Mark every new device as known",
+        "fr": "Marquer tous les nouveaux appareils comme connus",
+        "de": "Alle neuen Geräte als bekannt markieren",
+        "es": "Marcar todos los dispositivos nuevos como conocidos"
+      },
+      "description": {
+        "en": "Clears the \"new\" flag of every device in NetAlertX, e.g. right after installing it. Only devices that join later will count as new.",
+        "fr": "Retire le drapeau « nouveau » de tous les appareils dans NetAlertX, par exemple juste après son installation. Seuls les appareils arrivés ensuite compteront comme nouveaux.",
+        "de": "Entfernt die Markierung „neu“ bei allen Geräten in NetAlertX, z. B. direkt nach der Installation. Nur später hinzukommende Geräte zählen dann als neu.",
+        "es": "Quita la marca «nuevo» de todos los dispositivos en NetAlertX, por ejemplo justo después de instalarlo. Solo los dispositivos que lleguen después contarán como nuevos."
+      },
+      "timeout_seconds": 60
+    }
+  ],
+  "widgets": [
+    {
+      "key": "network",
+      "label": {
+        "en": "Network watch",
+        "fr": "Surveillance du réseau",
+        "de": "Netzwerküberwachung",
+        "es": "Vigilancia de la red"
+      },
+      "description": {
+        "en": "Devices online, new devices to acknowledge and devices down, with a Known button.",
+        "fr": "Appareils en ligne, nouveaux appareils à valider et appareils absents, avec un bouton Connu.",
+        "de": "Geräte online, neue zu bestätigende Geräte und ausgefallene Geräte, mit einer Schaltfläche Bekannt.",
+        "es": "Dispositivos en línea, nuevos por confirmar y caídos, con un botón Conocido."
+      },
+      "icon": "wifi",
+      "action_timeout_seconds": 15
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "new_device",
+      "label": {
+        "en": "A new device joins the network",
+        "fr": "Un nouvel appareil rejoint le réseau",
+        "de": "Ein neues Gerät tritt dem Netzwerk bei",
+        "es": "Un dispositivo nuevo se une a la red"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "NetAlertX sees a device for the first time (flagged new, not known yet).",
+        "fr": "NetAlertX voit un appareil pour la première fois (marqué nouveau, pas encore connu).",
+        "de": "NetAlertX sieht ein Gerät zum ersten Mal (als neu markiert, noch nicht bekannt).",
+        "es": "NetAlertX ve un dispositivo por primera vez (marcado como nuevo, aún no conocido)."
+      },
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil",
+            "de": "Gerätename",
+            "es": "Nombre del dispositivo"
+          }
+        },
+        {
+          "key": "mac",
+          "type": "string",
+          "label": {
+            "en": "MAC address",
+            "fr": "Adresse MAC",
+            "de": "MAC-Adresse",
+            "es": "Dirección MAC"
+          }
+        },
+        {
+          "key": "vendor",
+          "type": "string",
+          "label": {
+            "en": "Vendor",
+            "fr": "Fabricant",
+            "de": "Hersteller",
+            "es": "Fabricante"
+          }
+        },
+        {
+          "key": "ip",
+          "type": "string",
+          "label": {
+            "en": "IP address",
+            "fr": "Adresse IP",
+            "de": "IP-Adresse",
+            "es": "Dirección IP"
+          }
+        }
+      ]
+    },
+    {
+      "key": "device_left",
+      "label": {
+        "en": "A device leaves the network",
+        "fr": "Un appareil quitte le réseau",
+        "de": "Ein Gerät verlässt das Netzwerk",
+        "es": "Un dispositivo deja la red"
+      },
+      "description": {
+        "en": "A device seen at the previous NetAlertX scan is missing from the last one.",
+        "fr": "Un appareil vu au scan NetAlertX précédent manque au dernier.",
+        "de": "Ein beim vorherigen NetAlertX-Scan gesehenes Gerät fehlt beim letzten.",
+        "es": "Un dispositivo visto en el escaneo anterior de NetAlertX falta en el último."
       },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
+          "required": false,
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: any device of NetAlertX.",
+            "fr": "Vide : n'importe quel appareil de NetAlertX.",
+            "de": "Leer: jedes Gerät von NetAlertX.",
+            "es": "Vacío: cualquier dispositivo de NetAlertX."
+          }
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "name",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil",
+            "de": "Gerätename",
+            "es": "Nombre del dispositivo"
+          }
+        },
+        {
+          "key": "mac",
+          "type": "string",
+          "label": {
+            "en": "MAC address",
+            "fr": "Adresse MAC",
+            "de": "MAC-Adresse",
+            "es": "Dirección MAC"
+          }
+        },
+        {
+          "key": "ip",
+          "type": "string",
+          "label": {
+            "en": "IP address",
+            "fr": "Adresse IP",
+            "de": "IP-Adresse",
+            "es": "Dirección IP"
+          }
+        }
+      ]
+    },
+    {
+      "key": "device_returned",
+      "label": {
+        "en": "A device is back on the network",
+        "fr": "Un appareil revient sur le réseau",
+        "de": "Ein Gerät ist zurück im Netzwerk",
+        "es": "Un dispositivo vuelve a la red"
+      },
+      "description": {
+        "en": "A device missing from the previous NetAlertX scan is seen again.",
+        "fr": "Un appareil absent du scan NetAlertX précédent est revu.",
+        "de": "Ein beim vorherigen NetAlertX-Scan fehlendes Gerät wird wieder gesehen.",
+        "es": "Un dispositivo ausente del escaneo anterior de NetAlertX se vuelve a ver."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "required": false,
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: any device of NetAlertX.",
+            "fr": "Vide : n'importe quel appareil de NetAlertX.",
+            "de": "Leer: jedes Gerät von NetAlertX.",
+            "es": "Vacío: cualquier dispositivo de NetAlertX."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil",
+            "de": "Gerätename",
+            "es": "Nombre del dispositivo"
+          }
+        },
+        {
+          "key": "mac",
+          "type": "string",
+          "label": {
+            "en": "MAC address",
+            "fr": "Adresse MAC",
+            "de": "MAC-Adresse",
+            "es": "Dirección MAC"
+          }
+        },
+        {
+          "key": "ip",
+          "type": "string",
+          "label": {
+            "en": "IP address",
+            "fr": "Adresse IP",
+            "de": "IP-Adresse",
+            "es": "Dirección IP"
+          }
+        }
+      ]
+    },
+    {
+      "key": "down_alert",
+      "label": {
+        "en": "A watched device is down",
+        "fr": "Un appareil surveillé est absent",
+        "de": "Ein überwachtes Gerät ist ausgefallen",
+        "es": "Un dispositivo vigilado está caído"
+      },
+      "description": {
+        "en": "A device with \"Alert Down\" enabled in NetAlertX goes offline (a server, a camera, a router).",
+        "fr": "Un appareil dont « Alert Down » est activé dans NetAlertX passe hors ligne (un serveur, une caméra, une box).",
+        "de": "Ein Gerät mit aktiviertem „Alert Down“ in NetAlertX geht offline (ein Server, eine Kamera, ein Router).",
+        "es": "Un dispositivo con «Alert Down» activado en NetAlertX se desconecta (un servidor, una cámara, un router)."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "required": false,
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: any device of NetAlertX.",
+            "fr": "Vide : n'importe quel appareil de NetAlertX.",
+            "de": "Leer: jedes Gerät von NetAlertX.",
+            "es": "Vacío: cualquier dispositivo de NetAlertX."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil",
+            "de": "Gerätename",
+            "es": "Nombre del dispositivo"
+          }
+        },
+        {
+          "key": "mac",
+          "type": "string",
+          "label": {
+            "en": "MAC address",
+            "fr": "Adresse MAC",
+            "de": "MAC-Adresse",
+            "es": "Dirección MAC"
+          }
+        },
+        {
+          "key": "ip",
+          "type": "string",
+          "label": {
+            "en": "IP address",
+            "fr": "Adresse IP",
+            "de": "IP-Adresse",
+            "es": "Dirección IP"
+          }
+        },
+        {
+          "key": "last_seen",
+          "type": "string",
+          "label": {
+            "en": "Last seen",
+            "fr": "Vu pour la dernière fois",
+            "de": "Zuletzt gesehen",
+            "es": "Visto por última vez"
+          }
         }
       ]
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "mark_known",
+      "label": {
+        "en": "Mark a device as known (NetAlertX)",
+        "fr": "Marquer un appareil comme connu (NetAlertX)",
+        "de": "Gerät als bekannt markieren (NetAlertX)",
+        "es": "Marcar un dispositivo como conocido (NetAlertX)"
       },
-      "timeout_seconds": 15,
+      "description": {
+        "en": "Clears the \"new\" flag of a device in NetAlertX, as its interface does.",
+        "fr": "Retire le drapeau « nouveau » d'un appareil dans NetAlertX, comme son interface.",
+        "de": "Entfernt die Markierung „neu“ eines Geräts in NetAlertX, wie seine Oberfläche.",
+        "es": "Quita la marca «nuevo» de un dispositivo en NetAlertX, como su interfaz."
+      },
+      "timeout_seconds": 20,
       "fields": [
         {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "key": "mac",
+          "type": "string",
+          "required": true,
+          "label": {
+            "en": "MAC address",
+            "fr": "Adresse MAC",
+            "de": "MAC-Adresse",
+            "es": "Dirección MAC"
+          },
+          "description": {
+            "en": "After the \"A new device joins the network\" trigger, insert its MAC address variable.",
+            "fr": "Après le déclencheur « Un nouvel appareil rejoint le réseau », insérez sa variable Adresse MAC.",
+            "de": "Füge nach dem Auslöser „Ein neues Gerät tritt dem Netzwerk bei“ seine Variable MAC-Adresse ein.",
+            "es": "Tras el activador «Un dispositivo nuevo se une a la red», inserte su variable Dirección MAC."
+          },
+          "placeholder": {
+            "en": "e.g. 64:e4:d5:b4:12:66",
+            "fr": "ex. 64:e4:d5:b4:12:66",
+            "de": "z. B. 64:e4:d5:b4:12:66",
+            "es": "p. ej. 64:e4:d5:b4:12:66"
+          }
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "known",
+          "type": "number",
+          "label": {
+            "en": "Done (1 = yes)",
+            "fr": "Fait (1 = oui)",
+            "de": "Erledigt (1 = ja)",
+            "es": "Hecho (1 = sí)"
+          }
         }
       ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
     }
   ]
 }

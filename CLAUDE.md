@@ -32,15 +32,19 @@ pushing.
 
 ```
 index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+src/app.js                        registers every SDK handler on the monitor (tests use the same wiring)
+src/client.js                     NetAlertX API client (GraphQL device list, REST "mark as known")
+src/monitor.js                    timer, reference list, scene events, states, widget refresh
+src/devices.js                    the summary device and the per-MAC devices (buildDevice)
+src/store.js                      /data/snapshot.json: the last list read (MAC + flags)
+src/messages.js                   texts sent from the container, in four languages
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
 src/widgets.js                    dashboard widget handlers (manifest `widgets`)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
 gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (same sections)
+test/                             node --test, against the SDK's fake Gladys and a fake NetAlertX
+test/fixtures/netalertx/          answers recorded on a real NetAlertX 26.10.0, anonymized
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +74,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German ("du") and Spanish
+  ("usted"): action messages, manifest texts, widget texts, feature names, and
+  `docs/en.md`, `fr.md`, `de.md`, `es.md`, kept in sync (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +238,48 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## NetAlertX (vérifié contre NetAlertX 26.10.0 en Docker, le 21/10/2026)
+
+- **Deux ports** : 20211 = interface web (nginx/PHP), 20212 = API (Flask, `GRAPHQL_PORT`). L'intégration
+  parle à l'API ; sur 20211, `POST /graphql` répond 404, d'où le message « pas l'interface web ».
+- **Authentification** : `Authorization: Bearer <API_TOKEN>` (ou `?token=`). Jeton faux ou vide : 403
+  `{"success":false,"error":"Forbidden","message":"ERROR: Not authorized"}`. Le jeton se règle dans
+  Settings → General (`API_TOKEN`, préfixe `t_`).
+- **Lecture** par `GET /devices` (`{"success":true,"devices":[…]}`, lignes brutes `SELECT * FROM
+Devices`, lues **dans la base**) ; repli sur GraphQL `{ devices { devices { … } } }` si la route
+  répond 404 (anciennes versions). **GraphQL ne lit pas la base** mais `table_devices.json`, un cache
+  réécrit après chaque scan et sans écriture atomique : un « marquer comme connu » n'y apparaît
+  qu'au scan suivant, et une lecture pendant la réécriture rend une liste vide sans `errors` (d'où
+  la garde : liste vide crue seulement à la 3e lecture d'affilée). Un champ GraphQL inconnu fait
+  échouer **toute** la requête (HTTP 200 + `errors`) : ne demander que `DEVICE_FIELDS`.
+- La liste contient une ligne **`devMac: "internet"`** (IP publique) : écartée par `normalizeMac`.
+  Les MAC des conteneurs/téléphones sont souvent « locally administered » : `devVendor` vaut alors
+  `"(Unknown: locally administered)"`.
+- **Écriture** : `POST /device/<mac>/update-column` `{columnName: "devIsNew", columnValue: 0}` ;
+  MAC inconnue → 404 `{"error":"Device not found"}` ; colonne hors liste → 422 (pydantic).
+- **Dates** (`devLastConnection`…) : `"YYYY-MM-DD HH:MM:SS"` **en UTC** en 26.x, même avec `TZ` réglé
+  dans le conteneur NetAlertX. Les anciennes versions stockaient l'heure locale (dit dans les Limites).
+- Une MAC nouvelle a `devIsNew: 1`, `devPresentLastScan: 1`. Un départ passe `devPresentLastScan` à 0
+  au scan suivant (ARP, toutes les 5 min par défaut) ; `devAlertDown` est le réglage « Alert Down ».
+- Banc de test reproductible : `ghcr.io/jokob-sk/netalertx` sur un réseau pont `gladys-test-…`
+  (`--cap-add NET_RAW --cap-add NET_ADMIN --cap-add NET_BIND_SERVICE --tmpfs /tmp:uid=20211,gid=20211`),
+  `SCAN_SUBNETS` vaut d'office le sous-réseau du conteneur ; régler `API_TOKEN` et
+  `ARPSCAN_RUN_SCHD='*/1 * * * *'` dans `/data/config/app.conf`, puis démarrer/arrêter des
+  conteneurs busybox à MAC fixe. `docker cp` vers `/tmp` (tmpfs) échoue : passer par `docker exec -i`.
+
+## Choix propres à cette intégration
+
+- La première lecture ne fait qu'enregistrer la liste de référence (aucun déclencheur), gardée dans
+  `/data/snapshot.json` : un redémarrage ne réannonce rien et rattrape ce qui a changé pendant l'arrêt.
+- « Présent » est republié à chaque **scan** NetAlertX qui voit l'appareil (`devLastConnection` a bougé,
+  via `forgetPublishedStates`), pas à chaque lecture : l'action « Vérifier la présence » du cœur lit
+  l'heure du dernier état (même logique que le lan-manager du cœur et qu'UniFi).
+- Les déclencheurs valent pour tous les appareils NetAlertX, créés dans Gladys ou non ; le champ
+  `device` (facultatif) filtre sur l'`external_id`, toujours envoyé.
+- 20 événements de scène au plus par lecture ; les suivants, et ceux que Gladys refuse (redémarrage),
+  remettent l'entrée de référence de leur appareil comme avant (`undo`) et repartent à la lecture
+  suivante. 500 appareils au plus dans Découverte.
+- Une configuration enregistrée pendant une lecture l'emporte (`generation`) ; une nouvelle adresse
+  dont moins de la moitié des MAC sont connues est « un autre NetAlertX » : nouvelle référence, sans
+  déclencheur.

@@ -1,0 +1,5 @@
+{
+  "errors": [
+    "Cannot query field 'devNope' on type 'Device'. Did you mean 'devName', 'devType', or 'devSite'?\n\nGraphQL request:1:23\n1 | { devices { devices { devNope } } }\n  |                       ^"
+  ]
+}

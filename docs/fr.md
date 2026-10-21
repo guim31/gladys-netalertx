@@ -1,67 +1,184 @@
-# Template de démonstration
+# NetAlertX
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Sachez depuis Gladys qui est sur votre réseau. [NetAlertX](https://github.com/netalertx/NetAlertX)
+(ex Pi.Alert) scanne votre réseau et tient la liste de tous les appareils qu'il a vus. Cette
+intégration amène cette liste dans Gladys : la présence des téléphones, ordinateurs et autres
+appareils que vous choisissez de suivre, des compteurs pour tout le réseau, et surtout un
+**déclencheur de scène quand un appareil inconnu se connecte**.
+
+Usages typiques : être prévenu sur son téléphone quand un appareil que personne ne connaît rejoint
+le Wi-Fi, marquer quelqu'un à la maison quand son téléphone est sur le réseau, recevoir une alerte
+quand le NAS ou une caméra disparaît du réseau, voir d'un coup d'œil sur le tableau de bord les
+nouveaux appareils encore à valider.
+
+> **Testée contre un vrai NetAlertX (26.10.0, en Docker), pas encore dans une vraie installation :
+> vos retours sont bienvenus.** L'intégration a été vérifiée contre la vraie API de NetAlertX
+> (appareils qui arrivent, qui partent, nouvel appareil, « marquer comme connu »), mais pas encore
+> avec un vrai Gladys et un vrai réseau domestique. Dites-nous sur le forum Gladys comment elle se
+> comporte chez vous.
 
 ## Ce que vous obtenez
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+- Un appareil **Réseau NetAlertX**, le résumé de tout le réseau :
+
+  | Fonctionnalité           | Type dans Gladys  | Affiche                                                            |
+  | ------------------------ | ----------------- | ------------------------------------------------------------------ |
+  | **Appareils en ligne**   | compteur (entier) | appareils présents au dernier scan de NetAlertX                    |
+  | **Appareils hors ligne** | compteur (entier) | appareils absents du dernier scan                                  |
+  | **Nouveaux appareils**   | compteur (entier) | appareils que NetAlertX marque nouveaux (pas encore validés)       |
+  | **Alertes d'absence**    | compteur (entier) | appareils hors ligne dont **Alert Down** est activé dans NetAlertX |
+
+- **Un appareil par appareil réseau que vous choisissez de suivre** (tous les appareils de
+  NetAlertX sont proposés dans l'onglet Découverte, sauf les archivés) :
+
+  | Fonctionnalité               | Type dans Gladys                | Affiche                                                    |
+  | ---------------------------- | ------------------------------- | ---------------------------------------------------------- |
+  | **Présence**                 | détecteur de présence (oui/non) | « Présence détectée » tant que NetAlertX le voit           |
+  | **Adresse IP**               | texte                           | sa dernière adresse IP                                     |
+  | **Vu pour la dernière fois** | texte                           | la dernière fois que NetAlertX l'a vu, à l'heure de Gladys |
+
+- Un widget de tableau de bord, **Surveillance du réseau** : appareils en ligne, nouveaux appareils
+  et appareils absents, avec un bouton **Connu** pour les nouveaux.
+- Quatre déclencheurs de scène (**Un nouvel appareil rejoint le réseau**, **Un appareil quitte le
+  réseau**, **Un appareil revient sur le réseau**, **Un appareil surveillé est absent**) et une
+  action de scène, **Marquer un appareil comme connu (NetAlertX)**.
+
+## Prérequis
+
+- Gladys Assistant **5.1.0** ou plus récent (widgets, déclencheurs et actions de scène).
+- Un **NetAlertX** en service, que Gladys peut joindre sur le réseau local. L'intégration lit son
+  API (le serveur « GraphQL », port **20212** par défaut, réglage `GRAPHQL_PORT`), et non
+  l'interface web (port 20211). NetAlertX 26.x a été testé ; toute version qui a le jeton d'API et
+  l'API GraphQL (2024 et après) devrait fonctionner.
+- Le **jeton d'API** de NetAlertX : dans son interface web, **Settings → General → API token**
+  (réglage `API_TOKEN`, il commence par `t_`).
+- Rien d'autre : ni cloud, ni compte. NetAlertX fait les scans, l'intégration ne lit que leurs
+  résultats.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+### Réglages
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+1. Installez l'intégration (**Intégrations → Installer depuis GitHub**, adresse
+   `https://github.com/guim31/gladys-netalertx`), puis ouvrez son onglet **Configuration**.
+2. **Adresse de l'API** : l'adresse IP ou le nom du serveur NetAlertX, ex. `192.168.1.10`. Sans
+   port, `20212` est utilisé ; ajoutez `:port` si vous avez changé `GRAPHQL_PORT`, et `https://`
+   si l'API est derrière un proxy inverse.
+3. **Jeton d'API** : collez l'`API_TOKEN` de NetAlertX.
+4. **Intervalle de lecture** : fréquence à laquelle l'intégration lit la liste des appareils
+   (1 minute par défaut). NetAlertX scanne lui-même toutes les 5 minutes par défaut
+   (`ARPSCAN_RUN_SCHD`) : lire plus souvent ne fait que voir un scan plus tôt.
+5. **Langue des noms** : langue des noms donnés aux nouveaux appareils et à leurs
+   fonctionnalités, des messages et des dates (français par défaut).
+6. Enregistrez. L'état de connexion passe au vert, et les appareils apparaissent dans l'onglet
+   **Découverte**.
 
-## Actions
+### Actions de configuration
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+- **Tester la connexion** : lit NetAlertX une fois et indique combien d'appareils il connaît,
+  combien sont en ligne et combien sont nouveaux.
+- **Marquer tous les nouveaux appareils comme connus** : juste après l'installation de NetAlertX,
+  tous les appareils sont « nouveaux ». Cette action retire le drapeau à tous d'un coup, pour que
+  seuls les appareils arrivés ensuite comptent comme nouveaux (dans le compteur, le widget et le
+  déclencheur).
 
-## Scènes
+### Choisir les appareils
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+Dans l'onglet **Découverte**, ajoutez l'appareil **Réseau NetAlertX** pour les compteurs, et les
+appareils que vous voulez suivre un par un (téléphones, ordinateurs, serveurs, caméras…). Les
+autres restent dans NetAlertX : les déclencheurs fonctionnent pour tous les appareils de NetAlertX,
+créés dans Gladys ou non.
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+## Appareils
 
-## Tableau de bord
+- **Présence** suit le « présent au dernier scan » de NetAlertX : elle change au scan qui voit
+  l'appareil partir ou revenir, sans délai ajouté par l'intégration. Tant que l'appareil est
+  présent, « présent » est republié à chaque scan de NetAlertX, pour que l'action de scène
+  **Vérifier la présence** de Gladys voie l'appareil comme vu récemment (voir les exemples de
+  scènes).
+- **Adresse IP** et **Vu pour la dernière fois** sont des textes, mis à jour quand ils changent.
+  La date vient de NetAlertX et s'affiche dans le fuseau horaire de Gladys.
+- Les noms sont ceux qu'affiche NetAlertX (réglez-les dans NetAlertX avant d'ajouter l'appareil :
+  le nom est figé à la création dans Gladys). Un appareil sans nom affiche son fabricant et la fin
+  de son adresse MAC, ou son adresse MAC.
+- Les quatre compteurs de **Réseau NetAlertX** sont historisés : un graphique montre combien
+  d'appareils étaient en ligne au fil de la journée.
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+## Widget de tableau de bord
+
+**Surveillance du réseau** affiche trois tuiles (appareils en ligne, nouveaux appareils, appareils
+absents), puis la liste des nouveaux appareils (avec leur adresse IP, ou « hors ligne ») et des
+appareils absents, dix lignes au plus. Chacun des quatre premiers nouveaux appareils reçoit un
+bouton **Connu**, qui le marque comme connu dans NetAlertX. Quand il n'y a rien à signaler, une
+courte ligne le dit.
+
+## Déclencheurs de scène
+
+| Déclencheur                              | Se déclenche quand                                                         | Filtre                 | Informations transmises                                |
+| ---------------------------------------- | -------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------ |
+| **Un nouvel appareil rejoint le réseau** | NetAlertX voit un appareil pour la première fois, marqué nouveau           | aucun                  | nom, adresse MAC, fabricant, adresse IP                |
+| **Un appareil quitte le réseau**         | un appareil vu au scan précédent manque au dernier                         | appareil (vide : tous) | nom, adresse MAC, adresse IP                           |
+| **Un appareil revient sur le réseau**    | un appareil absent du scan précédent est revu                              | appareil (vide : tous) | nom, adresse MAC, adresse IP                           |
+| **Un appareil surveillé est absent**     | un appareil dont **Alert Down** est activé dans NetAlertX passe hors ligne | appareil (vide : tous) | nom, adresse MAC, adresse IP, vu pour la dernière fois |
+
+La toute première lecture après l'installation ne fait qu'enregistrer le réseau : aucun
+déclencheur pour les appareils déjà là. L'intégration retient la dernière liste lue (sous
+`/data`) : un redémarrage n'annonce pas de nouveau tous les appareils et ne manque pas ce qui a
+changé pendant l'arrêt. Au plus 20 événements partent par lecture, les suivants aux lectures d'après ; un événement que Gladys n'a pas pu prendre (pendant son redémarrage) repart à la lecture suivante.
+
+## Actions de scène
+
+- **Marquer un appareil comme connu (NetAlertX)** : retire le drapeau « nouveau » d'un appareil
+  dans NetAlertX, comme le fait la case **New Device** de sa fiche. Le champ **Adresse MAC**
+  accepte les variables de scène : après le déclencheur **Un nouvel appareil rejoint le réseau**,
+  insérez son **Adresse MAC**. Elle renvoie **Fait (1 = oui)** ; sur un appareil inconnu ou
+  NetAlertX injoignable, l'action échoue et la scène continue.
+
+## Exemples de scènes
+
+- **Appareil inconnu sur le Wi-Fi** : déclencheur **Un nouvel appareil rejoint le réseau** →
+  action **Envoyer un message** : « Nouvel appareil sur le réseau : {nom} ({fabricant}, {IP}) ».
+  Ajoutez **Marquer un appareil comme connu** avec l'adresse MAC à la fin si vous le validez
+  d'office (sinon il n'est signalé qu'une fois de toute façon : le déclencheur ne part qu'à sa
+  première apparition).
+- **Quelqu'un est à la maison** : déclencheur « changement d'état d'un appareil » sur la
+  **Présence** de son téléphone (égale à 1) → action **Utilisateur vu à la maison**. Une seconde
+  scène, lancée toutes les 10 minutes, fait **Vérifier la présence** avec son téléphone et
+  15 minutes : Gladys le marque absent dès que NetAlertX ne le voit plus.
+- **Le NAS est tombé** : activez **Alert Down** sur le NAS dans NetAlertX, puis déclencheur **Un
+  appareil surveillé est absent** (appareil : le NAS) → message « Le NAS a quitté le réseau (vu
+  pour la dernière fois {vu pour la dernière fois}) ».
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **« NetAlertX refuse le jeton d'API »** : recopiez le jeton depuis **Settings → General → API
+  token**. Si vous générez un nouveau jeton dans NetAlertX, mettez-le à jour ici.
+- **« Cette adresse ne répond pas comme l'API NetAlertX »** : l'adresse pointe vers l'interface
+  web (20211) ou un autre service. Utilisez le port de l'API, 20212 par défaut (`GRAPHQL_PORT`).
+- **« NetAlertX ne répond pas »** : vérifiez que Gladys peut joindre le serveur NetAlertX et son
+  port (pare-feu, port Docker publié). Avec NetAlertX en Docker sur le réseau de l'hôte, l'API
+  écoute sur l'adresse de l'hôte.
+- **Un téléphone apparaît hors ligne alors qu'il est à la maison** : les téléphones en veille Wi-Fi
+  ne répondent pas toujours au scan ARP, et les téléphones récents utilisent une adresse MAC privée
+  (aléatoire) par réseau. Désactivez l'adresse privée pour le Wi-Fi de la maison, et voyez les
+  réglages « appareils en veille » de NetAlertX.
+- **Tous les appareils sont « nouveaux »** : c'est ainsi que démarre NetAlertX. Lancez une fois
+  **Marquer tous les nouveaux appareils comme connus**.
+- **Logs** : l'intégration n'écrit que les événements importants (NetAlertX perdu et retrouvé,
+  appareils qui partent, reviennent, nouveaux appareils). Mettez `LOG_LEVEL=debug` sur le
+  conteneur pour voir chaque lecture.
+
+## Limites
+
+- L'intégration lit NetAlertX ; elle ne scanne rien elle-même. La présence n'est pas plus fraîche
+  que les scans de NetAlertX (toutes les 5 minutes par défaut).
+- **Vu pour la dernière fois** suppose que les dates de NetAlertX sont en UTC, comme dans
+  NetAlertX 26.x. Les versions plus anciennes stockaient l'heure locale : l'heure peut alors être
+  décalée.
+- Un appareil avec « Alert Down » que NetAlertX laisse dormir (« Can sleep ») déclenche quand même
+  **Un appareil surveillé est absent** quand il disparaît : l'intégration ne lit pas la fenêtre de veille.
+- Au plus 500 appareils sont proposés dans l'onglet Découverte. Les appareils archivés sont
+  ignorés.
+- Le filtre d'appareil des déclencheurs liste les appareils créés dans Gladys ; laissez-le vide
+  pour réagir à n'importe quel appareil de NetAlertX.
+- Sans lien avec NetAlertX.

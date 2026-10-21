@@ -1,77 +1,120 @@
+// -----------------------------------------------------------------------------
+// The `network` widget: content within the budget of the core
+// (validateWidgetContent), new and down devices, the "Known" buttons.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateWidgetContent } from '@gladysassistant/integration-sdk';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { buildDiscoveredDevices } from '../src/devices/index.js';
-import { simulateLanSession } from '../src/devices/plug.js';
-import { DEMO_STATUS_WIDGET, WIDGETS, refreshWidgets } from '../src/widgets.js';
-import { normalizeConfig } from '../src/config.js';
+import { LATER_SCAN, createServer, createWorld, read } from './helpers/world.js';
 
-const gladys = createFakeGladys();
-const config = normalizeConfig();
-const demoStatus = WIDGETS[DEMO_STATUS_WIDGET];
+async function world(t, options) {
+  const w = await createWorld(options);
+  t.after(() => w.app.stop());
+  return w;
+}
 
-// What the SDK passes to onWidgetGet, plus the config index.js adds.
-const getContent = (cfg = config) =>
-  demoStatus.get(gladys, { settings: {}, language: 'en', units: 'metric', config: cfg });
+async function content(w, language = 'en') {
+  const ack = await w.fake.widgetGet('network', { settings: {}, language });
+  assert.equal(ack.success, true);
+  const { content: body } = ack.data;
+  validateWidgetContent(body);
+  return body;
+}
 
-test('the demo_status content is rendered exactly as sent', async () => {
-  // [] = nothing the core would drop, truncate or trim to the content budget.
-  assert.deepEqual(validateWidgetContent(await getContent()), []);
-});
+const ofType = (body, type) => body.components.filter((component) => component.type === type);
 
-test('the degraded plug connection content is valid too', async () => {
-  simulateLanSession(false);
-  try {
-    const content = await getContent();
-    assert.deepEqual(validateWidgetContent(content), []);
-    const status = content.components.find((component) => component.type === 'status');
-    assert.ok(
-      status.items.some((item) => item.color === 'warning'),
-      'degraded shows a warning',
-    );
-  } finally {
-    simulateLanSession(true);
-  }
-});
-
-test('the live tiles reference features the integration publishes', async () => {
-  const featureIds = new Set(
-    buildDiscoveredDevices(gladys, config).flatMap((device) =>
-      device.features.map((feature) => feature.external_id),
-    ),
+test('new devices and devices down, each once, with "Known" buttons', async (t) => {
+  const w = await world(t);
+  w.server.devices = structuredClone(LATER_SCAN);
+  await read(w);
+  const body = await content(w);
+  assert.ok(body.components.length <= 8);
+  assert.deepEqual(
+    ofType(body, 'value').map((tile) => [tile.label, tile.value]),
+    [
+      ['Online', 4],
+      ['New', 5],
+      ['Down', 1],
+    ],
   );
-  const liveTiles = (await getContent()).components.filter((c) => c.device_feature);
-  assert.ok(liveTiles.length > 0, 'the template demonstrates a device-bound tile');
-  for (const tile of liveTiles) {
-    assert.ok(featureIds.has(tile.device_feature), `unknown feature ${tile.device_feature}`);
-  }
-});
-
-test('every button action of the content is handled and answers a short toast', async () => {
-  const buttons = (await getContent()).components.filter((c) => c.type === 'button' && c.action);
-  assert.ok(buttons.length > 0, 'the template demonstrates a widget action');
-  for (const { action } of buttons) {
-    const message = await demoStatus.action(gladys, {
-      actionKey: action.key,
-      params: action.params ?? {},
-      settings: {},
-      config,
-    });
-    assert.ok(message.en, 'the toast carries at least the mandatory `en` text');
-    assert.ok(message.en.length <= 200, 'toasts are capped at 200 characters');
-  }
-});
-
-test('an unknown widget action fails, so the user sees the error', async () => {
-  await assert.rejects(
-    demoStatus.action(gladys, { actionKey: 'unknown', params: {}, settings: {}, config }),
-    /Unknown widget action/,
+  const [status] = ofType(body, 'status');
+  assert.deepEqual(
+    status.items.map((item) => [item.label, item.value]),
+    [
+      ['docker-host', 'New · 192.0.2.1'],
+      ['netalertx', 'New · 192.0.2.10'],
+      ['phone', 'New · offline'],
+      ['tablet', 'New · 192.0.2.24'],
+      ['laptop', 'Down · 192.0.2.21'],
+    ],
   );
+  const buttons = ofType(body, 'button');
+  assert.equal(buttons.length, 4);
+  assert.deepEqual(
+    buttons.map((button) => button.action.key),
+    ['known_1', 'known_2', 'known_3', 'known_4'],
+  );
+  for (const button of buttons) {
+    assert.ok(button.label.length <= 24, button.label);
+    assert.notEqual(button.style, 'primary');
+  }
 });
 
-test('refreshWidgets nudges every widget', () => {
-  const fresh = createFakeGladys();
-  refreshWidgets(fresh);
-  assert.deepEqual(fresh.fake.widgetRefreshes, Object.keys(WIDGETS));
+test('a "Known" button marks the device, then the widget forgets it', async (t) => {
+  const w = await world(t);
+  const [button] = ofType(await content(w, 'fr'), 'button');
+  assert.equal(button.label, 'Connu : docker-host');
+  const ack = await w.fake.widgetAction('network', button.action.key, button.action.params, {
+    settings: {},
+  });
+  assert.deepEqual(ack.data.message, {
+    en: 'docker-host marked as known.',
+    fr: 'docker-host marqué comme connu.',
+    de: 'docker-host als bekannt markiert.',
+    es: 'docker-host marcado como conocido.',
+  });
+  assert.equal(w.server.row('02:00:5e:10:00:01').devIsNew, 0);
+  const again = await w.fake.widgetAction('network', button.action.key, button.action.params, {
+    settings: {},
+  });
+  assert.equal(again.data.message.en, 'This device is no longer new.');
+  const labels = ofType(await content(w), 'status')[0].items.map((item) => item.label);
+  assert.ok(!labels.includes('docker-host'));
+});
+
+test('nothing to report: a caption under the tiles; NetAlertX not read: a waiting text', async (t) => {
+  const w = await world(t);
+  await w.fake.action('mark_all_known');
+  const calm = await content(w, 'de');
+  assert.deepEqual(
+    ofType(calm, 'text').map((text) => text.text),
+    ['Kein neues Gerät, kein ausgefallenes Gerät.'],
+  );
+  assert.equal(ofType(calm, 'status').length, 0);
+  const server = createServer();
+  server.down = true;
+  const lost = await world(t, { server });
+  const waiting = await content(lost, 'es');
+  assert.deepEqual(waiting.components, [
+    {
+      type: 'text',
+      variant: 'body',
+      text: 'Esperando a NetAlertX: compruebe la configuración de la integración.',
+    },
+  ]);
+});
+
+test('the widget is refreshed when a device is created and when the list changes', async (t) => {
+  const w = await world(t);
+  const before = w.fake.widgetRefreshes.length;
+  w.clock.advance(20_000);
+  w.server.devices = structuredClone(LATER_SCAN);
+  await read(w);
+  assert.equal(w.fake.widgetRefreshes.length, before + 1);
+  await read(w);
+  assert.equal(w.fake.widgetRefreshes.length, before + 1, 'same list: no refresh');
+  w.clock.advance(20_000);
+  await w.fake.deviceCreated(w.fake.discoveredDevices[0]);
+  assert.equal(w.fake.widgetRefreshes.length, before + 2);
 });
