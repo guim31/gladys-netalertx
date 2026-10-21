@@ -235,7 +235,7 @@ test('the monitor reads NetAlertX on its own timer, never through onPoll', async
   t.after(() => app.stop());
   await gladys.connect();
   await app.ready;
-  const reads = () => server.requests.filter((r) => r.path === '/graphql').length;
+  const reads = () => server.requests.filter((r) => r.path === '/devices').length;
   assert.equal(reads(), 1);
   for (const device of gladys.fake.discoveredDevices) {
     assert.equal(device.should_poll, false);
@@ -250,7 +250,7 @@ test('the monitor reads NetAlertX on its own timer, never through onPoll', async
 test('the onPoll fallback does not read NetAlertX more than every 15 s', async (t) => {
   const w = await world(t);
   const summary = await create(w, SUMMARY);
-  const reads = () => w.server.requests.filter((r) => r.path === '/graphql').length;
+  const reads = () => w.server.requests.filter((r) => r.path === '/devices').length;
   const before = reads();
   await w.fake.poll(summary);
   assert.equal(reads(), before);
@@ -266,4 +266,109 @@ test('dates are shown in the time zone of Gladys, in the language of the configu
   assert.equal(formatSeen('not a date', 'en', 'UTC'), '');
   assert.equal(formatSeen('', 'en', 'UTC'), '');
   assert.equal(formatSeen('2026-10-21 14:38:18', 'es', 'Not/AZone').length > 0, true);
+});
+
+test('an empty list (NetAlertX rewriting its cache) is ignored twice, then believed', async (t) => {
+  const w = await world(t);
+  const summary = await create(w, SUMMARY);
+  const saved = w.server.devices;
+  w.server.devices = [];
+  await read(w);
+  await read(w);
+  assert.equal(w.fake.lastState(featureId(summary, 'online')), 5);
+  assert.equal(discovered(w, LAPTOP) !== undefined, true);
+  w.server.devices = saved;
+  await read(w);
+  assert.deepEqual(events(w), [], 'no new_device again after the blank');
+  w.server.devices = [];
+  for (let i = 0; i < 3; i += 1) {
+    await read(w);
+  }
+  assert.equal(w.fake.lastState(featureId(summary, 'online')), 0);
+});
+
+test('a configuration saved during a read wins over that read', async (t) => {
+  const server = createServer();
+  server.token = 't_other';
+  const w = await world(t, { server, config: { ...CONFIG, api_token: 't_wrong' } });
+  assert.equal(w.fake.connectionStatus.connected, false);
+  // A slow read with the wrong token is running when the right one is saved.
+  let release;
+  const client = w.monitor.client;
+  const fast = client.fetch;
+  client.fetch = (...args) => new Promise((resolve) => (release = () => resolve(fast(...args))));
+  const stale = w.monitor.runCycle();
+  const saving = w.fake.configUpdated({ ...CONFIG, api_token: 't_other' });
+  await new Promise((resolve) => setImmediate(resolve));
+  release();
+  await stale;
+  await saving;
+  await w.monitor.running;
+  assert.deepEqual(w.fake.connectionStatus, { connected: true });
+});
+
+test('a scene event Gladys refuses is sent again at the next read', async (t) => {
+  const w = await world(t);
+  const publish = w.gladys.publishSceneEvent.bind(w.gladys);
+  t.mock.method(w.gladys, 'publishSceneEvent', async () => {
+    throw new Error('Gladys restarting');
+  });
+  w.server.devices = structuredClone(LATER_SCAN);
+  await read(w);
+  assert.deepEqual(events(w), []);
+  w.gladys.publishSceneEvent = publish;
+  await read(w);
+  assert.deepEqual(
+    events(w).map(([key]) => key),
+    ['device_left', 'down_alert', 'device_left', 'new_device'],
+  );
+});
+
+test('beyond the cap, the remaining events follow at the next read', async (t) => {
+  const w = await world(t);
+  for (let i = 0; i < MAX_EVENTS_PER_CYCLE + 5; i += 1) {
+    const suffix = (0x40 + i).toString(16);
+    w.server.devices.push({ ...FIRST_SCAN[1], devMac: `02:00:5e:10:01:${suffix}`, devIsNew: 1 });
+  }
+  await read(w);
+  await read(w);
+  await read(w);
+  assert.equal(events(w).length, MAX_EVENTS_PER_CYCLE + 5);
+  assert.equal(new Set(events(w).map(([, data]) => data.mac)).size, MAX_EVENTS_PER_CYCLE + 5);
+});
+
+test('a device deleted in NetAlertX shows absent in Gladys', async (t) => {
+  const w = await world(t);
+  const laptop = await create(w, LAPTOP);
+  assert.equal(w.fake.lastState(featureId(laptop, 'presence')), 1);
+  w.server.devices = w.server.devices.filter((d) => d.devMac !== '02:00:5e:10:00:21');
+  await read(w);
+  assert.equal(w.fake.lastState(featureId(laptop, 'presence')), 0);
+});
+
+test('pointing to another NetAlertX records its network without announcing it', async (t) => {
+  const w = await world(t);
+  const other = FIRST_SCAN.map((row, i) => ({ ...row, devMac: `02:00:5e:20:00:${10 + i}` }));
+  const server = createServer(other);
+  w.monitor.fetch = server.fetch;
+  await w.fake.configUpdated({ ...CONFIG, url: '192.0.2.99' });
+  await w.monitor.running;
+  assert.deepEqual(events(w), []);
+  // Back to the first NetAlertX: a different network again, recorded silently.
+  w.server.devices = structuredClone(LATER_SCAN);
+  w.monitor.fetch = w.server.fetch;
+  await w.fake.configUpdated({ ...CONFIG, url: 'netalertx.lan' });
+  await w.monitor.running;
+  assert.equal(events(w).length, 0);
+});
+
+test('the same NetAlertX under another address keeps its reference', async (t) => {
+  const w = await world(t);
+  w.server.devices = structuredClone(LATER_SCAN);
+  await w.fake.configUpdated({ ...CONFIG, url: 'netalertx.lan' });
+  await w.monitor.running;
+  assert.deepEqual(
+    events(w).map(([key]) => key),
+    ['device_left', 'down_alert', 'device_left', 'new_device'],
+  );
 });

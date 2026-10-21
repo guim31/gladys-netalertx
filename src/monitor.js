@@ -113,6 +113,13 @@ export class Monitor {
     this.widgetKey = null;
     this.connected = null;
     this.lastReadAt = -Infinity;
+    // Bumped by every configuration: a read started before is thrown away.
+    this.generation = 0;
+    // Set when the address changes: the next read checks it is the same NetAlertX.
+    this.checkServer = false;
+    // Empty lists read in a row while the reference is not empty.
+    this.emptyReads = 0;
+    this.next = null;
     this.cycleTimer = null;
     this.running = null;
     this.lastRefreshAt = -Infinity;
@@ -144,6 +151,7 @@ export class Monitor {
   async start(config) {
     this.applyConfig(config);
     const saved = await this.store.load();
+    // `devices: null`: the reference was reset (another NetAlertX), the next read records it.
     if (saved && saved.version === 1 && saved.devices && typeof saved.devices === 'object') {
       this.reference = new Map(
         Object.entries(saved.devices)
@@ -189,6 +197,7 @@ export class Monitor {
     await this.publishDiscovered();
     this.schedule();
     if (before?.url !== config.url || before?.token !== config.token) {
+      this.checkServer = before?.url !== config.url && this.reference !== null;
       this.connected = null;
       this.lastReadAt = -Infinity;
       await this.runCycle();
@@ -197,6 +206,7 @@ export class Monitor {
   }
 
   applyConfig(config) {
+    this.generation += 1;
     this.config = config;
     this.client =
       config.url && config.token
@@ -234,14 +244,27 @@ export class Monitor {
   }
 
   runCycle() {
-    if (this.running || this.stopped) {
+    if (this.stopped) {
       return this.running;
     }
-    this.running = this.cycle()
+    if (this.running) {
+      if (this.running.generation === this.generation) {
+        return this.running;
+      }
+      // The configuration changed during this read: read again right after.
+      this.next ??= this.running.then(() => {
+        this.next = null;
+        return this.runCycle();
+      });
+      return this.next;
+    }
+    const generation = this.generation;
+    this.running = this.cycle(generation)
       .catch((err) => this.failed('cycle', 'error', `Read cycle failed: ${err.message}`))
       .finally(() => {
         this.running = null;
       });
+    this.running.generation = generation;
     return this.running;
   }
 
@@ -252,7 +275,7 @@ export class Monitor {
     }
   }
 
-  async cycle() {
+  async cycle(generation = this.generation) {
     if (!this.client) {
       await this.setConnected(false, STATUS.notConfigured);
       return;
@@ -261,9 +284,15 @@ export class Monitor {
     try {
       list = await this.client.listDevices();
     } catch (err) {
+      if (generation !== this.generation) {
+        return;
+      }
       this.lastReadAt = this.now();
       this.failed('read', 'warn', `NetAlertX unreachable: ${err.message}`);
       await this.setConnected(false, statusOf(err));
+      return;
+    }
+    if (generation !== this.generation) {
       return;
     }
     this.lastReadAt = this.now();
@@ -271,6 +300,22 @@ export class Monitor {
     await this.setConnected(true);
 
     const active = list.filter((device) => !device.archived);
+    // A whole network gone at once is a NetAlertX restarting or rewriting its
+    // cache, not every device leaving: believed only after 3 reads in a row.
+    if (active.length === 0 && this.devices.size > 0 && this.emptyReads < 2) {
+      this.emptyReads += 1;
+      logger.debug('Empty device list, ignored');
+      return;
+    }
+    this.emptyReads = 0;
+    if (this.checkServer) {
+      this.checkServer = false;
+      const known = active.filter((device) => this.reference?.has(device.mac)).length;
+      if (this.reference && known < this.reference.size / 2) {
+        logger.info('Another NetAlertX: its devices become the new reference');
+        this.reference = null;
+      }
+    }
     const events = this.compare(active);
     this.devices = new Map(active.map((device) => [device.mac, device]));
     logger.debug(`Read cycle: ${active.length} device(s), ${events.length} event(s)`);
@@ -298,14 +343,18 @@ export class Monitor {
       const before = this.reference.get(device.mac);
       if (!before) {
         if (device.isNew) {
-          events.push({ trigger: TRIGGERS.NEW_DEVICE, device });
+          events.push({ trigger: TRIGGERS.NEW_DEVICE, device, before: null });
         }
         continue;
       }
       if (before.present !== device.present) {
-        events.push({ trigger: device.present ? TRIGGERS.RETURNED : TRIGGERS.LEFT, device });
+        events.push({
+          trigger: device.present ? TRIGGERS.RETURNED : TRIGGERS.LEFT,
+          device,
+          before,
+        });
         if (!device.present && device.alertDown) {
-          events.push({ trigger: TRIGGERS.DOWN, device });
+          events.push({ trigger: TRIGGERS.DOWN, device, before });
         }
       }
     }
@@ -330,7 +379,10 @@ export class Monitor {
       return;
     }
     this.referenceChanged = false;
-    await this.store.save({ version: 1, devices: Object.fromEntries(this.reference) });
+    await this.store.save({
+      version: 1,
+      devices: this.reference ? Object.fromEntries(this.reference) : null,
+    });
   }
 
   eventData(trigger, device) {
@@ -349,8 +401,23 @@ export class Monitor {
     return data;
   }
 
+  /**
+   * An event Gladys did not take (Gladys restarting, more than the cap in one
+   * read) puts its device back as it was in the reference: the next read
+   * sends it again instead of losing it.
+   */
+  undo({ device, before }) {
+    if (before === null) {
+      this.reference.delete(device.mac);
+    } else {
+      this.reference.set(device.mac, { ...before });
+    }
+    this.referenceChanged = true;
+  }
+
   async fire(events) {
-    for (const { trigger, device } of events.slice(0, MAX_EVENTS_PER_CYCLE)) {
+    for (const event of events.slice(0, MAX_EVENTS_PER_CYCLE)) {
+      const { trigger, device } = event;
       const name = displayName(device);
       if (trigger === TRIGGERS.NEW_DEVICE) {
         logger.info(
@@ -364,12 +431,14 @@ export class Monitor {
         this.recovered('event', 'Scene events accepted again');
       } catch (err) {
         this.failed('event', 'warn', `Scene event ${trigger} refused: ${err.message}`);
+        this.undo(event);
       }
     }
     if (events.length > MAX_EVENTS_PER_CYCLE) {
-      logger.warn(
-        `${events.length - MAX_EVENTS_PER_CYCLE} more change(s) in one read, not sent to the scenes`,
+      logger.info(
+        `${events.length - MAX_EVENTS_PER_CYCLE} more change(s) in one read, sent at the next reads`,
       );
+      events.slice(MAX_EVENTS_PER_CYCLE).forEach((event) => this.undo(event));
     }
   }
 
@@ -390,7 +459,9 @@ export class Monitor {
   /** Published again only when the list or a name changed. */
   async publishDiscovered() {
     const devices = this.discoveredDevices();
-    const key = JSON.stringify(devices.map((device) => [device.external_id, device.name]));
+    const key = JSON.stringify(
+      devices.map((device) => [device.external_id, device.name, device.params]),
+    );
     if (key === this.discoveryKey) {
       return;
     }
@@ -454,6 +525,13 @@ export class Monitor {
         states.push({ device_feature_external_id: ids.last_seen, text: seen });
       }
     }
+    // Deleted or archived in NetAlertX: no longer seen, so not present.
+    for (const device of this.gladys.devices ?? []) {
+      const mac = macOf(this.gladys, device.external_id);
+      if (mac && !this.devices.has(mac)) {
+        states.push({ device_feature_external_id: hostIds(this.gladys, mac).presence, state: 0 });
+      }
+    }
     if (states.length === 0) {
       return;
     }
@@ -504,7 +582,7 @@ export class Monitor {
     }
     const client = this.requireClient();
     try {
-      await client.markKnown(mac);
+      await client.markKnown(this.devices.get(mac)?.rawMac || mac);
     } catch (err) {
       if (err instanceof NetAlertXError && err.kind === 'notFound') {
         throw new GladysError(render(ERRORS.unknownMac, { value: mac }), this.config.language);
@@ -538,7 +616,7 @@ export class Monitor {
     let count = 0;
     for (const device of fresh) {
       try {
-        await client.markKnown(device.mac);
+        await client.markKnown(device.rawMac || device.mac);
         device.isNew = false;
         const entry = this.reference?.get(device.mac);
         if (entry) {

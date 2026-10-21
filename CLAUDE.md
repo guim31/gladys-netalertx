@@ -246,10 +246,13 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - **Authentification** : `Authorization: Bearer <API_TOKEN>` (ou `?token=`). Jeton faux ou vide : 403
   `{"success":false,"error":"Forbidden","message":"ERROR: Not authorized"}`. Le jeton se règle dans
   Settings → General (`API_TOKEN`, préfixe `t_`).
-- **Lecture** par GraphQL `{ devices { devices { … } } }` (toutes les lignes sans `options`). Un champ
-  inconnu fait échouer **toute** la requête (HTTP 200 + `errors`) : ne demander que des colonnes
-  anciennes (`DEVICE_FIELDS`), jamais `devIsSleeping`, `devPrimaryIPv4`… apparues en 2025-2026.
-  Le REST `GET /devices` existe aussi (lignes brutes `SELECT *`), plus récent.
+- **Lecture** par `GET /devices` (`{"success":true,"devices":[…]}`, lignes brutes `SELECT * FROM
+Devices`, lues **dans la base**) ; repli sur GraphQL `{ devices { devices { … } } }` si la route
+  répond 404 (anciennes versions). **GraphQL ne lit pas la base** mais `table_devices.json`, un cache
+  réécrit après chaque scan et sans écriture atomique : un « marquer comme connu » n'y apparaît
+  qu'au scan suivant, et une lecture pendant la réécriture rend une liste vide sans `errors` (d'où
+  la garde : liste vide crue seulement à la 3e lecture d'affilée). Un champ GraphQL inconnu fait
+  échouer **toute** la requête (HTTP 200 + `errors`) : ne demander que `DEVICE_FIELDS`.
 - La liste contient une ligne **`devMac: "internet"`** (IP publique) : écartée par `normalizeMac`.
   Les MAC des conteneurs/téléphones sont souvent « locally administered » : `devVendor` vaut alors
   `"(Unknown: locally administered)"`.
@@ -274,4 +277,9 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
   l'heure du dernier état (même logique que le lan-manager du cœur et qu'UniFi).
 - Les déclencheurs valent pour tous les appareils NetAlertX, créés dans Gladys ou non ; le champ
   `device` (facultatif) filtre sur l'`external_id`, toujours envoyé.
-- 20 événements de scène au plus par lecture ; 500 appareils au plus dans Découverte.
+- 20 événements de scène au plus par lecture ; les suivants, et ceux que Gladys refuse (redémarrage),
+  remettent l'entrée de référence de leur appareil comme avant (`undo`) et repartent à la lecture
+  suivante. 500 appareils au plus dans Découverte.
+- Une configuration enregistrée pendant une lecture l'emporte (`generation`) ; une nouvelle adresse
+  dont moins de la moitié des MAC sont connues est « un autre NetAlertX » : nouvelle référence, sans
+  déclencheur.

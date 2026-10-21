@@ -116,8 +116,7 @@ When there is nothing to report, a short line says so.
 
 The very first read after the installation only records the network: no trigger fires for the
 devices already there. The integration remembers the last list it read (under `/data`), so a
-restart neither announces every device again nor misses what changed while it was stopped. At
-most 20 events are sent per read.
+restart neither announces every device again nor misses what changed while it was stopped. At most 20 events are sent per read, the next ones at the following reads; an event Gladys could not take (while it restarts) is sent again at the next read.
 
 ## Scene actions
 
@@ -163,6 +162,8 @@ most 20 events are sent per read.
   the NetAlertX scans (every 5 minutes by default).
 - **Last seen** assumes the dates of NetAlertX are in UTC, as in NetAlertX 26.x. Older versions
   stored local time: the hour may then be shifted.
+- A device with "Alert Down" that NetAlertX lets sleep ("Can sleep") still fires **A watched
+  device is down** when it drops off: the integration does not read the sleep window.
 - Up to 500 devices are proposed in the Discover tab. Archived devices are ignored.
 - The device filter of the triggers lists the devices created in Gladys; leave it empty to react
   to any device of NetAlertX.

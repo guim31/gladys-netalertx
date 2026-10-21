@@ -37,8 +37,9 @@ the NetAlertX API and its API token. The full guide: [docs/en.md](docs/en.md) (a
 
 ## How it works
 
-- The integration reads the device list of NetAlertX through its GraphQL API (`POST /graphql`,
-  `Authorization: Bearer <API_TOKEN>`), every minute by default, on its own timer (the devices are
+- The integration reads the device list of NetAlertX through `GET /devices`
+  (`Authorization: Bearer <API_TOKEN>`), or its GraphQL API on older versions, every minute by
+  default, on its own timer (the devices are
   published with `should_poll: false`).
 - It compares each read with the previous one, kept under `/data`: a MAC address never seen
   before and flagged new fires **new device**, a change of "present in the last scan" fires
@@ -55,7 +56,7 @@ the NetAlertX API and its API token. The full guide: [docs/en.md](docs/en.md) (a
 - "Last seen" assumes NetAlertX stores UTC dates (26.x); older versions stored local time.
 - Phones with a private (random) MAC address per network show as a new device per network.
 - Up to 500 devices in the Discover tab; archived devices are ignored; 20 scene events per read at
-  most.
+  most (the next ones follow at the next reads).
 
 ## Development
 

@@ -27,14 +27,17 @@ export const TOKEN = 't_testtoken0123456789';
 export const CONFIG = { url: '192.0.2.10', api_token: TOKEN, language: 'en' };
 
 /**
- * Fake NetAlertX: `server.devices` is the device table (GraphQL rows), edited by
- * the tests like a scan would; `server.down = true` refuses connections,
- * `server.token` is the API_TOKEN it accepts.
+ * Fake NetAlertX: `server.devices` is the device table, edited by the tests
+ * like a scan would, served by `GET /devices` and GraphQL alike;
+ * `server.rest = false` is a NetAlertX older than `GET /devices` (404);
+ * `server.down = true` refuses connections, `server.token` is the API_TOKEN
+ * it accepts.
  */
 export function createServer(devices = FIRST_SCAN) {
   const server = {
     devices: structuredClone(devices),
     token: TOKEN,
+    rest: true,
     down: false,
     requests: [],
     async fetch(url, init = {}) {
@@ -53,6 +56,9 @@ export function createServer(devices = FIRST_SCAN) {
       });
       if (init.headers?.Authorization !== `Bearer ${server.token}`) {
         return reply(403, fixture('forbidden.json'));
+      }
+      if (pathname === '/devices' && (init.method ?? 'GET') === 'GET' && server.rest) {
+        return reply(200, { devices: server.devices, success: true });
       }
       if (pathname === '/graphql' && init.method === 'POST') {
         return reply(200, {

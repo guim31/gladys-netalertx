@@ -1,10 +1,14 @@
 // -----------------------------------------------------------------------------
 // NetAlertX API client (the backend on GRAPHQL_PORT, 20212 by default).
 //
-// - The device list is read through GraphQL (`POST /graphql`, NetAlertX 24.x
-//   and later), asking only for columns every version has: GraphQL refuses
-//   the whole query (HTTP 200 with `errors`) on a field it does not know, so
-//   newer columns (devIsSleeping, devPrimaryIPv4...) are never requested.
+// - The device list is read through `GET /devices` (NetAlertX 25.x and
+//   later), which reads the database itself. GraphQL (`POST /graphql`, 24.x
+//   and later) is the fallback when that route is missing (404): it reads
+//   `table_devices.json`, a cache rewritten after each scan (so a "mark as
+//   known" shows there only after the next scan) and not atomically (a read
+//   during the rewrite gets an empty list). The GraphQL query asks only for
+//   columns every version has: it refuses the whole query (HTTP 200 with
+//   `errors`) on a field it does not know.
 // - "Mark as known" clears `devIsNew` through the REST endpoint
 //   `POST /device/<mac>/update-column` (the call the NetAlertX interface makes).
 //
@@ -75,6 +79,8 @@ export function normalizeDevice(row) {
   const name = text(row.devName);
   return {
     mac,
+    // The MAC as NetAlertX stores it: the one "mark as known" must send.
+    rawMac: text(row.devMac),
     name: UNNAMED.has(name.toLowerCase()) ? '' : name,
     vendor: text(row.devVendor),
     ip: text(row.devLastIP),
@@ -113,6 +119,8 @@ export class NetAlertXClient {
     this.token = token;
     this.fetch = fetchImpl ?? globalThis.fetch;
     this.timeoutMs = timeoutMs;
+    // null until known: true when GET /devices exists, false on an older NetAlertX.
+    this.rest = null;
   }
 
   async request(path, { method = 'GET', body } = {}) {
@@ -131,6 +139,10 @@ export class NetAlertXClient {
     } catch (err) {
       if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
         throw new NetAlertXError('timeout', `No answer within ${this.timeoutMs / 1000} s`);
+      }
+      // A token pasted with an invisible character cannot even be sent.
+      if (/ByteString|header/i.test(err?.message ?? '')) {
+        throw new NetAlertXError('auth', 'The API token contains an invalid character');
       }
       throw new NetAlertXError('network', err?.cause?.code ?? err?.message ?? 'Network error');
     }
@@ -152,6 +164,25 @@ export class NetAlertXClient {
 
   /** Every device of NetAlertX with a MAC address, archived ones included. */
   async listDevices() {
+    if (this.rest !== false) {
+      try {
+        const data = await this.request('/devices');
+        if (!Array.isArray(data.devices)) {
+          throw new NetAlertXError('format', 'No device list in the answer');
+        }
+        this.rest = true;
+        return data.devices.map(normalizeDevice).filter(Boolean);
+      } catch (err) {
+        if (this.rest === true || err.kind !== 'notFound') {
+          throw err;
+        }
+        this.rest = false;
+      }
+    }
+    return this.listDevicesGraphql();
+  }
+
+  async listDevicesGraphql() {
     const data = await this.request('/graphql', { method: 'POST', body: { query: DEVICES_QUERY } });
     if (Array.isArray(data.errors) && data.errors.length > 0) {
       const first = data.errors[0];

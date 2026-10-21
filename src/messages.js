@@ -31,6 +31,14 @@ export const STATUS = {
     de: 'NetAlertX antwortet nicht: Prüfe die Adresse und den API-Port (standardmäßig 20212).',
     es: 'NetAlertX no responde: compruebe la dirección y el puerto de la API (20212 por defecto).',
   },
+  http: {
+    en: ({ status }) => `NetAlertX answered with an error (HTTP ${status}): see its logs.`,
+    fr: ({ status }) => `NetAlertX a répondu par une erreur (HTTP ${status}) : voyez ses logs.`,
+    de: ({ status }) =>
+      `NetAlertX hat mit einem Fehler geantwortet (HTTP ${status}): Sieh dir seine Protokolle an.`,
+    es: ({ status }) =>
+      `NetAlertX ha respondido con un error (HTTP ${status}): consulte sus registros.`,
+  },
   format: {
     en: 'This address does not answer like the NetAlertX API (port 20212, not the 20211 web interface).',
     fr: "Cette adresse ne répond pas comme l'API NetAlertX (port 20212, pas l'interface web 20211).",
@@ -45,6 +53,9 @@ export function statusOf(err) {
   }
   if (err?.kind === 'format' || err?.kind === 'notFound') {
     return STATUS.format;
+  }
+  if (err?.kind === 'http' && err.status) {
+    return render(STATUS.http, { status: err.status });
   }
   return STATUS.network;
 }

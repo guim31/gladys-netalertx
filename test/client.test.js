@@ -26,14 +26,45 @@ test('MAC addresses are normalized, anything else is refused', () => {
   }
 });
 
+test('GET /devices is read first: a real row of NetAlertX 26.10.0', async () => {
+  const { devices: rows } = fixture('rest-devices.json');
+  const server = createServer(rows);
+  const devices = await client(server).listDevices();
+  assert.deepEqual(
+    server.requests.map((r) => `${r.method} ${r.path}`),
+    ['GET /devices'],
+  );
+  assert.equal(devices.length, 2);
+  assert.equal(devices[0].mac, '02:00:5e:10:00:21');
+  assert.equal(devices[0].rawMac, '02:00:5e:10:00:21');
+  assert.equal(devices[0].name, 'laptop.lan');
+  assert.equal(devices[0].present, false);
+  assert.equal(devices[0].alertDown, true);
+});
+
+test('an older NetAlertX without GET /devices is read through GraphQL, then directly', async () => {
+  const server = createServer(LATER_SCAN);
+  server.rest = false;
+  const c = client(server);
+  await c.listDevices();
+  await c.listDevices();
+  assert.deepEqual(
+    server.requests.map((r) => `${r.method} ${r.path}`),
+    ['GET /devices', 'POST /graphql', 'POST /graphql'],
+  );
+});
+
 test('the recorded device list is read, without the "internet" pseudo-device', async () => {
-  const devices = await client(createServer(LATER_SCAN)).listDevices();
+  const server = createServer(LATER_SCAN);
+  server.rest = false;
+  const devices = await client(server).listDevices();
   assert.equal(LATER_SCAN.length, 7);
   assert.equal(devices.length, 6);
   assert.ok(!devices.some((device) => device.ip === '198.51.100.7'));
   const laptop = devices.find((device) => device.mac === '02:00:5e:10:00:21');
   assert.deepEqual(laptop, {
     mac: '02:00:5e:10:00:21',
+    rawMac: '02:00:5e:10:00:21',
     name: 'laptop.lan',
     vendor: '(Unknown: locally administered)',
     ip: '192.0.2.21',
@@ -50,8 +81,9 @@ test('the recorded device list is read, without the "internet" pseudo-device', a
 
 test('the GraphQL query asks only for columns of the recorded answer', async () => {
   const server = createServer();
+  server.rest = false;
   await client(server).listDevices();
-  const { query } = server.requests[0].body;
+  const { query } = server.requests[1].body;
   const recorded = new Set(Object.keys(FIRST_SCAN[0]));
   for (const field of DEVICE_FIELDS) {
     assert.ok(query.includes(field), field);
@@ -62,7 +94,7 @@ test('the GraphQL query asks only for columns of the recorded answer', async () 
 test('the token travels as a Bearer header, and a refused token is an auth error', async () => {
   const server = createServer();
   await client(server).listDevices();
-  assert.equal(server.requests[0].url, 'http://192.0.2.10:20212/graphql');
+  assert.equal(server.requests[0].url, 'http://192.0.2.10:20212/devices');
   await assert.rejects(client(server, 't_wrong').listDevices(), (err) => {
     assert.equal(err.kind, 'auth');
     assert.equal(err.status, 403);
@@ -72,12 +104,12 @@ test('the token travels as a Bearer header, and a refused token is an auth error
 });
 
 test('a GraphQL error, a non-JSON answer and a refused connection have their own kind', async () => {
+  // An older NetAlertX (no GET /devices) whose GraphQL refuses the query.
   const graphqlError = {
-    fetch: async () => ({
-      ok: true,
-      status: 200,
-      json: async () => fixture('graphql-unknown-field.json'),
-    }),
+    fetch: async (url) =>
+      url.endsWith('/devices')
+        ? { ok: false, status: 404, json: async () => ({ error: 'Not Found' }) }
+        : { ok: true, status: 200, json: async () => fixture('graphql-unknown-field.json') },
   };
   await assert.rejects(
     new NetAlertXClient({ url: 'http://x', token: TOKEN, ...graphqlError }).listDevices(),
@@ -101,13 +133,29 @@ test('a GraphQL error, a non-JSON answer and a refused connection have their own
   const server = createServer();
   server.down = true;
   await assert.rejects(client(server).listDevices(), { kind: 'network', message: 'ECONNREFUSED' });
+  const proxyError = { fetch: async () => ({ ok: false, status: 502, json: async () => null }) };
+  await assert.rejects(
+    new NetAlertXClient({ url: 'http://x', token: TOKEN, ...proxyError }).listDevices(),
+    { kind: 'http', status: 502 },
+  );
+  // A token pasted with an invisible character: the real fetch refuses the header.
+  await assert.rejects(
+    new NetAlertXClient({ url: 'http://192.0.2.10', token: 't_abc\u200b' }).listDevices(),
+    { kind: 'auth' },
+  );
 });
 
 test('a request that hangs times out', async () => {
+  // The timer of AbortSignal.timeout does not keep the event loop alive (Node
+  // 22): the hanging request holds a timer of its own, like a socket would.
   const hanging = {
     fetch: (url, init) =>
       new Promise((resolve, reject) => {
-        init.signal.addEventListener('abort', () => reject(init.signal.reason));
+        const socket = setTimeout(resolve, 5000);
+        init.signal.addEventListener('abort', () => {
+          clearTimeout(socket);
+          reject(init.signal.reason);
+        });
       }),
   };
   await assert.rejects(

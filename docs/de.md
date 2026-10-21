@@ -121,7 +121,7 @@ die es in NetAlertX als bekannt markiert. Gibt es nichts zu melden, sagt das ein
 Das allererste Lesen nach der Installation zeichnet nur das Netzwerk auf: kein Auslöser für die
 schon vorhandenen Geräte. Die Integration merkt sich die zuletzt gelesene Liste (unter `/data`):
 Ein Neustart kündigt nicht alle Geräte erneut an und verpasst nicht, was sich in der Zwischenzeit
-geändert hat. Höchstens 20 Ereignisse werden pro Lesevorgang gesendet.
+geändert hat. Höchstens 20 Ereignisse gehen pro Lesevorgang raus, die weiteren bei den nächsten; ein Ereignis, das Gladys nicht annehmen konnte (während eines Neustarts), wird beim nächsten Lesen erneut gesendet.
 
 ## Szenen-Aktionen
 
@@ -171,6 +171,9 @@ geändert hat. Höchstens 20 Ereignisse werden pro Lesevorgang gesendet.
   wie die Scans von NetAlertX (standardmäßig alle 5 Minuten).
 - **Zuletzt gesehen** nimmt an, dass die Daten von NetAlertX in UTC sind, wie in NetAlertX 26.x.
   Ältere Versionen speicherten die Ortszeit: Die Uhrzeit kann dann verschoben sein.
+- Ein Gerät mit „Alert Down“, das NetAlertX schlafen lässt („Can sleep“), löst trotzdem **Ein
+  überwachtes Gerät ist ausgefallen** aus, wenn es verschwindet: Die Integration liest das
+  Schlaffenster nicht.
 - Höchstens 500 Geräte werden im Tab „Entdecken“ vorgeschlagen. Archivierte Geräte werden
   ignoriert.
 - Der Gerätefilter der Auslöser listet die in Gladys angelegten Geräte; lass ihn leer, um auf

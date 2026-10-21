@@ -124,7 +124,7 @@ courte ligne le dit.
 La toute première lecture après l'installation ne fait qu'enregistrer le réseau : aucun
 déclencheur pour les appareils déjà là. L'intégration retient la dernière liste lue (sous
 `/data`) : un redémarrage n'annonce pas de nouveau tous les appareils et ne manque pas ce qui a
-changé pendant l'arrêt. Au plus 20 événements sont envoyés par lecture.
+changé pendant l'arrêt. Au plus 20 événements partent par lecture, les suivants aux lectures d'après ; un événement que Gladys n'a pas pu prendre (pendant son redémarrage) repart à la lecture suivante.
 
 ## Actions de scène
 
@@ -175,6 +175,8 @@ changé pendant l'arrêt. Au plus 20 événements sont envoyés par lecture.
 - **Vu pour la dernière fois** suppose que les dates de NetAlertX sont en UTC, comme dans
   NetAlertX 26.x. Les versions plus anciennes stockaient l'heure locale : l'heure peut alors être
   décalée.
+- Un appareil avec « Alert Down » que NetAlertX laisse dormir (« Can sleep ») déclenche quand même
+  **Un appareil surveillé est absent** quand il disparaît : l'intégration ne lit pas la fenêtre de veille.
 - Au plus 500 appareils sont proposés dans l'onglet Découverte. Les appareils archivés sont
   ignorés.
 - Le filtre d'appareil des déclencheurs liste les appareils créés dans Gladys ; laissez-le vide

@@ -124,7 +124,7 @@ corta lo indica.
 La primerísima lectura tras la instalación solo registra la red: ningún activador para los
 dispositivos que ya estaban. La integración recuerda la última lista leída (en `/data`): un
 reinicio no vuelve a anunciar todos los dispositivos ni se pierde lo que cambió mientras estaba
-parada. Se envían como máximo 20 eventos por lectura.
+parada. Se envían como máximo 20 eventos por lectura, los siguientes en las lecturas posteriores; un evento que Gladys no pudo recibir (durante su reinicio) se vuelve a enviar en la lectura siguiente.
 
 ## Acciones de escena
 
@@ -174,6 +174,8 @@ parada. Se envían como máximo 20 eventos por lectura.
   como los escaneos de NetAlertX (cada 5 minutos por defecto).
 - **Visto por última vez** supone que las fechas de NetAlertX están en UTC, como en NetAlertX
   26.x. Las versiones anteriores guardaban la hora local: la hora puede salir desplazada.
+- Un dispositivo con «Alert Down» que NetAlertX deja dormir («Can sleep») activa igualmente **Un
+  dispositivo vigilado está caído** cuando desaparece: la integración no lee la ventana de reposo.
 - Se proponen como máximo 500 dispositivos en la pestaña Descubrir. Los dispositivos archivados se
   ignoran.
 - El filtro de dispositivo de los activadores lista los dispositivos creados en Gladys; déjelo
