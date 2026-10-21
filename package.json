@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
+  "name": "gladys-netalertx",
   "version": "1.0.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "NetAlertX in Gladys Assistant: presence of the network devices, scene triggers when an unknown device connects.",
   "type": "module",
   "main": "index.js",
   "scripts": {

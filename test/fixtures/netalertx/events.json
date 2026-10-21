@@ -1,0 +1,168 @@
+{
+  "count": 18,
+  "events": [
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:40:34",
+      "eveEventType": "Connected",
+      "eveIp": "198.51.100.7",
+      "eveMac": "internet",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 1
+    },
+    {
+      "eveAdditionalInfo": "(Unknown: locally administered)",
+      "eveDateTime": "2026-10-21 14:39:22",
+      "eveEventType": "New Device",
+      "eveIp": "192.0.2.24",
+      "eveMac": "02:00:5e:10:00:24",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:39:22",
+      "eveEventType": "Disconnected",
+      "eveIp": "192.0.2.22",
+      "eveMac": "02:00:5e:10:00:22",
+      "evePairEventRowid": 2,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:39:22",
+      "eveEventType": "Connected",
+      "eveIp": "192.0.2.24",
+      "eveMac": "02:00:5e:10:00:24",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:39:22",
+      "eveEventType": "Device Down",
+      "eveIp": "192.0.2.21",
+      "eveMac": "02:00:5e:10:00:21",
+      "evePairEventRowid": 1,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:37:14",
+      "eveEventType": "Disconnected",
+      "eveIp": "198.51.100.7",
+      "eveMac": "internet",
+      "evePairEventRowid": 6,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": null,
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "New Device",
+      "eveIp": "198.51.100.7",
+      "eveMac": "internet",
+      "evePairEventRowid": 13,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": null,
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "New Device",
+      "eveIp": "192.0.2.10",
+      "eveMac": "02:00:5e:10:00:10",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "(Unknown: locally administered)",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "New Device",
+      "eveIp": "192.0.2.1",
+      "eveMac": "02:00:5e:10:00:01",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "(Unknown: locally administered)",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "New Device",
+      "eveIp": "192.0.2.23",
+      "eveMac": "02:00:5e:10:00:23",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "(Unknown: locally administered)",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "New Device",
+      "eveIp": "192.0.2.22",
+      "eveMac": "02:00:5e:10:00:22",
+      "evePairEventRowid": 16,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "(Unknown: locally administered)",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "New Device",
+      "eveIp": "192.0.2.21",
+      "eveMac": "02:00:5e:10:00:21",
+      "evePairEventRowid": 14,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "Connected",
+      "eveIp": "198.51.100.7",
+      "eveMac": "internet",
+      "evePairEventRowid": 13,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "Connected",
+      "eveIp": "192.0.2.10",
+      "eveMac": "02:00:5e:10:00:10",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "Connected",
+      "eveIp": "192.0.2.1",
+      "eveMac": "02:00:5e:10:00:01",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "Connected",
+      "eveIp": "192.0.2.23",
+      "eveMac": "02:00:5e:10:00:23",
+      "evePairEventRowid": null,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "Connected",
+      "eveIp": "192.0.2.22",
+      "eveMac": "02:00:5e:10:00:22",
+      "evePairEventRowid": 16,
+      "evePendingAlertEmail": 0
+    },
+    {
+      "eveAdditionalInfo": "",
+      "eveDateTime": "2026-10-21 14:36:18",
+      "eveEventType": "Connected",
+      "eveIp": "192.0.2.21",
+      "eveMac": "02:00:5e:10:00:21",
+      "evePairEventRowid": 14,
+      "evePendingAlertEmail": 0
+    }
+  ],
+  "success": true
+}

@@ -1,93 +1,67 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { DEVICE_BLUEPRINTS } from '../src/devices/index.js';
-import { MOTION_DETECTED_TRIGGER, motionSensor } from '../src/devices/motionSensor.js';
-import { SCENE_ACTIONS } from '../src/scenes.js';
-import { normalizeConfig } from '../src/config.js';
+import { LATER_SCAN, createServer, createWorld, events, read } from './helpers/world.js';
 
-const manifest = JSON.parse(
-  await readFile(new URL('../gladys-assistant-integration.json', import.meta.url), 'utf8'),
-);
-const config = normalizeConfig();
+async function world(t, options) {
+  const w = await createWorld(options);
+  t.after(() => w.app.stop());
+  return w;
+}
 
-const declarationOf = (list, key) => manifest[list].find((entry) => entry.key === key);
-const keysOf = (list) => (list ?? []).map((entry) => entry.key);
-const deviceIdOf = (gladys, key) =>
-  DEVICE_BLUEPRINTS.find((bp) => bp.key === key).deviceExternalId(gladys);
-
-// Let the async interval callback run to completion.
-const flush = () => new Promise((resolve) => setImmediate(resolve));
-
-test('the motion sensor fires one motion_detected event per detection, none on the clear', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
-  const gladys = createFakeGladys();
-  const stopPush = motionSensor.startPush(gladys, config);
-  try {
-    t.mock.timers.tick(60_000);
-    await flush();
-    assert.equal(gladys.fake.sceneEvents.length, 1, 'one detection, one event');
-    assert.equal(gladys.fake.sceneEvents[0].key, MOTION_DETECTED_TRIGGER);
-    assert.equal(gladys.fake.states.at(-1).state, 1, 'the state is still published');
-
-    t.mock.timers.tick(10_000);
-    await flush();
-    assert.equal(gladys.fake.states.at(-1).state, 0, 'the detection is cleared');
-    assert.equal(gladys.fake.sceneEvents.length, 1, 'the clear fires no event');
-  } finally {
-    stopPush();
-  }
+test('mark_known clears the flag in NetAlertX, whatever the MAC format', async (t) => {
+  const w = await world(t);
+  const ack = await w.fake.sceneAction('mark_known', { mac: '02-00-5E-10-00-21' });
+  assert.deepEqual(ack, { success: true, data: { outputs: { known: 1 } } });
+  assert.equal(w.server.row('02:00:5e:10:00:21').devIsNew, 0);
+  assert.equal(w.monitor.counts().new, 4);
 });
 
-test('motion_detected data only carries keys the trigger declares', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
-  const gladys = createFakeGladys();
-  const stopPush = motionSensor.startPush(gladys, config);
-  try {
-    t.mock.timers.tick(60_000);
-    await flush();
-  } finally {
-    stopPush();
-  }
-  const [{ data }] = gladys.fake.sceneEvents;
-  const trigger = declarationOf('scene_triggers', MOTION_DETECTED_TRIGGER);
-  // The core keeps the `fields` keys (filters) and the `variables` keys
-  // (exposed to the scene): any other key would be silently dropped.
-  const declared = [...keysOf(trigger.fields), ...keysOf(trigger.variables)];
-  for (const [key, value] of Object.entries(data)) {
-    assert.ok(declared.includes(key), `data.${key} is not declared, the core would drop it`);
-    assert.ok(value === null || typeof value !== 'object', `data.${key} must be a primitive`);
-  }
-  // A `"source": "devices"` filter stores a device external_id.
-  assert.equal(data.device, deviceIdOf(gladys, 'motion-sensor'));
-  const targets = trigger.fields.find((field) => field.key === 'target').options;
-  assert.ok(
-    targets.some((option) => option.value === data.target),
-    `data.target "${data.target}" must be one of the filter options`,
-  );
+test('the MAC address of the "new device" trigger is what the action needs', async (t) => {
+  const w = await world(t);
+  w.server.devices = structuredClone(LATER_SCAN);
+  await read(w);
+  const [, data] = events(w).find(([key]) => key === 'new_device');
+  const ack = await w.fake.sceneAction('mark_known', { mac: data.mac });
+  assert.equal(ack.success, true);
+  assert.equal(w.server.row(data.mac).devIsNew, 0);
+  // Acknowledged: no new event at the next read, and the reference is saved.
+  await read(w);
+  assert.equal(events(w).filter(([key]) => key === 'new_device').length, 1);
 });
 
-test('identify_device signals the chosen device and returns the declared outputs', async () => {
-  const gladys = createFakeGladys();
-  const outputs = await SCENE_ACTIONS.identify_device(gladys, {
-    fields: { device: deviceIdOf(gladys, 'light') },
-    config,
-  });
-  assert.deepEqual(outputs, { signalled: true });
-  const declared = keysOf(declarationOf('scene_actions', 'identify_device').outputs);
-  for (const key of Object.keys(outputs)) {
-    assert.ok(declared.includes(key), `output "${key}" is not declared, the core would drop it`);
-  }
+test('mark_known errors: invalid MAC, unknown device, NetAlertX down', async (t) => {
+  const server = createServer();
+  const w = await world(t, { server });
+  const invalid = await w.fake.sceneAction('mark_known', { mac: 'not-a-mac' });
+  assert.equal(invalid.success, false);
+  assert.match(invalid.error, /not a MAC address/);
+  const unknown = await w.fake.sceneAction('mark_known', { mac: '02:00:5e:10:00:99' });
+  assert.equal(unknown.success, false);
+  assert.match(unknown.error, /does not know the device 02:00:5e:10:00:99/);
+  server.down = true;
+  const down = await w.fake.sceneAction('mark_known', { mac: '02:00:5e:10:00:21' });
+  assert.equal(down.success, false);
+  assert.match(down.error, /cannot be reached/);
 });
 
-test('identify_device reports a device that cannot signal itself through its output', async () => {
-  // Not a failure: a scene action is never a condition, the scene author
-  // gates the following actions on the output instead.
-  const gladys = createFakeGladys();
-  const outputs = await SCENE_ACTIONS.identify_device(gladys, {
-    fields: { device: deviceIdOf(gladys, 'weather-station') },
-    config,
-  });
-  assert.deepEqual(outputs, { signalled: false });
+test('configuration actions: test the connection, mark every new device as known', async (t) => {
+  const w = await world(t);
+  const tested = await w.fake.action('test_connection');
+  assert.equal(tested.success, true);
+  assert.equal(tested.data.message.en, 'Connected to NetAlertX: 5 device(s), 5 online, 5 new.');
+  const marked = await w.fake.action('mark_all_known');
+  assert.equal(marked.data.message.fr, '5 appareil(s) marqué(s) comme connu(s) dans NetAlertX.');
+  assert.equal(w.monitor.counts().new, 0);
+  assert.ok(w.server.devices.filter((d) => d.devMac.includes(':')).every((d) => d.devIsNew === 0));
+});
+
+test('configuration actions answer in words when NetAlertX refuses', async (t) => {
+  const server = createServer();
+  const w = await world(t, { server });
+  server.token = 't_changed';
+  const tested = await w.fake.action('test_connection');
+  assert.equal(tested.success, true);
+  assert.match(tested.data.message.en, /refused the API token/);
+  const marked = await w.fake.action('mark_all_known');
+  assert.match(marked.data.message.de, /lehnt das API-Token ab/);
 });
